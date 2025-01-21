@@ -1,0 +1,25 @@
+kind: Ingress
+metadata:
+  name: world
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx    # k get ingressclassname
+  rules:
+  - host: world.universe.mine 
+    http:
+      paths:
+      - path: /asia
+        pathType: Prefix
+        backend:
+          service:
+            name: asia
+            port:
+              number: 80
+      - path: /europe
+        pathType: Prefix
+        backend:
+          service:
+            name: europe
+            port:
+              number: 80

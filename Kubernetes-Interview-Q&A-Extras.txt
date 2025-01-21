@@ -1,0 +1,62 @@
+Frequently asked Kubernetes Interview Questions 
+
+1) Why use k8s? (k8s flow) 
+2) What are the components of k8s ? which are components in the master and which are in the node?
+3) What is the use of KubeApi in the master plan?
+4) What is the use of ETCD in k8s architecture?   
+5) What is use of Kube-Schudler in k8s?
+6) Scenario: lets one pod is running and the replica count is 3 suppose I want to scale the replica 3 to 5, and if I want to decrease that replica count?
+7) Let's say I have an application pod and one database pod how do they communicate?
+8) What are the different types of services in k8s? 
+9) What is the use of node port service in k8s? what is the use of ClusterIp? How to access your pod form outside of your cluster which service do you use and why? 
+10) How authentication handle in k8s? 
+11) What is label and selector in k8s? 
+12) Wright deployments manifest file?
+13) Difference between kubectl create and apply? 
+
+14)  Difference between a replica set and a replication controller? 
+
+15)  What are deployments in k8s and explain the types of deployments? 
+
+16) What are self-healing k8s? 
+
+17)  What is namespace in k8s? how the namespace is there in the master plan?
+
+18) What is the Nginx ingress controller in k8s? 
+
+19)  How to get logs of your application pod in k8s?
+
+20)  What is Kube spray how to use it? 
+
+21)  Do you ever get a chance to setup istio in k8s? 
+
+22) How check the memory of k8s nodes? 
+
+23) How to take a backup of etcd database in k8s?  
+
+24)  What is a stateless and stateful pod or container? 
+
+25) What is the role of kubelet?  
+
+26 ) How to change ip of running pod?
+
+27 ) Can we have more than 2 fqdns for a single pod? If yes then how?
+
+28 ) Can we use file share to store logs of pod? How?
+
+29 ) What is the use of loadbalancer in k8?
+
+30 ) How aks upgrade takes place?
+
+31) Is there any effect of ingress version on pods behavior?
+
+32) What happen of we delete any pod? How to do this?
+
+33) How to remove pod completely from a cluster?
+
+34) What is rbac in aks?
+
+35)How to login to any pod?
+
+I would appreciate it if you could add any additional interview questions to this list so it will help others!! 
+*******end***********
