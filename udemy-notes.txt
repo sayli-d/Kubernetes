@@ -1,0 +1,931 @@
+copy paste : yy shift p
+
+kubectl run nginx --image ngix
+kubectl run static-busybox --image=busybox --dry-run=client -o yaml --command -- sleep 1000 > static-busybox.yaml
+kubectl apply -f pod.yaml		
+kubectl get pods
+kubectl describe pod mypod
+kubectl scale --replicas=6 -f rs.yaml
+kubectl scale --replicas=6 replicaset my-rs
+Both the above commands will update the pod counf to 6 but it will still have replicas=3 in the rs.yaml file
+kubectl edit rs <rs-name>
+kubectl create deployment <deployment_name> --image=<image_name> --replicas=3
+kubectl create deployment <deployment_name> --image=<image_name> --replicas=3 --dy-run=client -o yaml
+kubectl create deployment <deployment_name> --image=<image_name> --replicas=3 --dy-run=client -o yaml > deployment.yaml
+Create a service to expose redis to port 6379: kubectl expose pod redis --port=6379 --name redis-service --dry-run=client -o yaml
+kubectl config set-context $(kubectl config current-context) --namespace=dev  //set the default ns to dev
+kubectl get pods --all-namespaces
+kubectl get pods -A
+kubectl replace --force -f nginx.yaml //This command will delete the pod and recreate it with the updated nginx.yaml modification
+kubectl exec -it <pod-name> -n <ns> -- cat /app/log
+kubectl logs pod podname -c c1
+k set image deployment <dep-name> <container-name>=<new-image>
+k run custom-nginx --image=nginx --port=8080
+k get roles --no-headers
+k exec -it multi-pod -c sidecar -- id
+
+kubectl create deployment red --image=nginx --replicas=2 --dry-run=client -o yaml >dep.yaml
+
+Create a service to expose redis to port 6379?
+kubectl expose pod redis --port=6379 --name redis-service --dry-run=client -o yaml
+
+Create a pod called httpd using the image httpd:alpine in the default namespace. Next, create a service of type ClusterIP by the same name (httpd). 
+The target port for the service should be 80?
+kubectl run httpd --image=httpd:alpine --port=80 --expose=true  //this cmd will create pod and service
+
+---
+Declarative command to create or update: update in the yaml file and the apply.
+kubectl apply -f pods.yaml
+
+Imperative commands to create:
+kubectl run nginx --image ngix
+kubectl create deployment <deployment_name> --image=<image_name> --replicas=3
+
+Imperative commd to update:
+kubectl edit rs <rs-name>
+kubectl set image deployment nignx --image=nginx
+kubectl expose deployment nginx --port 80
+kubectl scale --replicas=6 replicaset my-rs
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+	name: mypod
+	labels:
+		app: my-label
+		type: frontend
+spec:
+	containers:
+	  - name : nginx-congtainer
+		image : nginx
+---
+kubectl apply -f pod.yaml		
+kubectl get pods
+kubectl describe pod mypod
+---
+apiVersion: v1
+kind: ReplicationController
+metadata:
+	name: my-rc
+	type: frontend
+spec:
+  template:
+	metadata:
+	  name: mypod
+	  labels:
+		app: my-label
+		type: frontend
+    spec:
+	  containers:
+	  - name : nginx-congtainer
+		image : nginx
+  replicas: 3
+---
+kubectl get rc
+---
+rs.yaml
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: my-rs
+  labels:
+    type: frontend
+spec:
+  template:
+    metadata:
+	  name: mypod
+	  labels:
+		app: my-label
+		type: frontend
+    spec:
+	  containers:
+	  - name : nginx-congtainer
+		image : nginx
+  replicas: 3
+  selector:
+    matchLabels:
+	  type: frontend
+  
+---
+* Selector is the major diff betwn RC and RS.
+---
+
+---
+deployment.yaml is same as rs.yaml except the kind: Deployment
+---
+kubectl get all
+--
+svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysvc
+spec:
+  type: NodePort
+  ports:
+    - targetport
+      port:
+      NodePort:
+  selector:
+    app: my-label   //These are obtained from pod's labels which we want to link to this svc
+    type: frontend
+	
+-----------
+Manual Scheduling
+add nodeName: <name> in the pod.yaml while creating the pod. Already created pod can not be rescheduled on a new node using nodeName. we can create a Binding and then reschule
+it on another node.
+If schudeler is absent, pod will remain in the pending state
+
+apiVersion: v1
+kind: Pod
+metadata:
+	name: mypod
+	labels:
+		app: my-label
+		type: frontend
+spec:
+	containers:
+	  - name : nginx-congtainer
+		image : nginx
+	nodeName: node01
+	
+-------
+Labels and selectors:
+
+kubectl get pods --selector app=App1
+kubectl get all --selector env=prod,bu=finance,tier=frontend
+
+Taint is put on Node
+Toleration is put on pods.
+
+kubectl taint nodes node-name key=value:<taint-effect>
+
+There are 3 types of taint-effects : 
+1. NoSchedule - No new pods will be scheduled
+2. PreferNoSchedule - Try to avoid placing a pod on the node but that is not guaranteed
+3. NoExecute - No new pod will be placed on this node and existing pods on this node will be evicted if they do not tolerate the taint
+
+Example: How to add taint
+kubectl taint nodes node-name key=value:<taint-effect>
+kubectl taint nodes node1 app=blue:NoSchedule
+
+How to remove taint: Put minus
+kubectl taint nodes node1 app=blue:NoSchedule-
+
+In order for the pod to be able to placed on this node we have to make the pod tolerant by adding toleration.
+
+apiVersion:
+kind:
+metadata:
+spec:
+  container:
+  - name: nginx
+    image: nginx
+  tolerantions:
+  - key: "app"
+    operator: "Equal"
+    value: "blue"
+    effect : "NoSchedule"
+
+Note: Pod with toleration to node1 can also be placed on node2. Toleration does not tell pod to go and sit on which node. 
+When you apply taint on the node, it gives power to the node to accept only those pods which have toleration. pod can very well go and sit on other node.
+If you want a specific pod to be placed on a particular node only then this is achived through node affinity.
+
+Master node has taint effect as NoSchedule applied.
+
+kubectl describe node node01 | grep Taints
+
+-------
+Node Selector: To place pod on a particular node, we mention NodeSelector in pods' spec And add label to the node. This can be used when pod is to be placed on only one node.
+If you want to provide choice, say, pods can be placed on node1 or node2 in that case node affinity is used.
+
+kubectl label node nodename label-key=label=value
+
+Node Affinity: used when you want to place a pod on a particular node or provide a list of nodes on which pod can be placed. It is configurued in the pod's spec.
+requiredDuringSchedulingIgnoreDuringExecution
+preferredDuringSchedulingIgnoreDuringExecution
+
+kubectl label node node01 disktype=ssd
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: disktype
+            operator: In
+            values:
+            - ssd   #Here you can add the list, which can help place the pod on the nodes having this label.          
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: IfNotPresent
+
+-----------------
+
+Resources:
+
+1 CPU - 1 AWS vCPU, 1 Azure core
+1G (Gigabyte) = 1,000,000,000 bytes
+1M (Megabyte) = 1,000,000 bytes
+1K (Kilobyte) = 1,000 bytes
+
+1Gi (Gibibyte) = 1,073,741,824 bytes
+1Mi (Mebibyte) = 1,048,576 bytes
+1Ki (Kibibyte) = 1,024 bytes
+
+By default pod has no limit to the resources. It can use as much cpu/memory as it wants.
+If the limit exceeds:
+In case of CPU : System throttles the cpu and doesn't allow pod to use CPU above it's limit
+In case of memory : System allows pod to use memory above it's limit but if it occurs often then the pod gets terminated with an OOM error (Out of memory)
+
+Cases for CPU:
+1. No request, no limit
+2. No request, limit ---- reuqest=limit
+3. Request, limit
+4. Request, no limit --- most ideal case
+
+DaemonSets : These are the objects which help to keep copy of pod on all the nodes that is created and removes this pod when that node is deleted.
+Eg : If suppose you add a node, then the pod associated with the DaemonSet will automatically be added on the new node also. DS can be used for adding monitoring related pods,
+so that we don't have to install new pod separately on the new node.
+DS can not be created using Imperative command, but deployment and daemonset definition files are same, we can edit the kind, name and replicas.
+
+Static pods:
+These pods are created by Kubelet without the intervention of kube-apiserver. Pod definition file is kept at a particular location in the worker node, kubelet checks this location
+after every interval and creates the pod using the file. This pod can be modified/deleted only by modifying/deleting the definition file kept at this location.
+Static pods are used to run Control plane components like etcd, apiserver and controller-manager pods. The files etcd.yaml, apiserver.yaml, controller-manager.yaml are stored at the location say. /etc/kubernetes/manifests
+How to identify static pods? They have node name appended at the end of them.
+
+-------------
+Monitoring:
+There is Metrics server native to kubernetes. We can also use Prometheus, Datadog, ELK stack, dynatrace, etc.
+
+Logging:
+kubectl logs -f <podname>
+
+If there are multiple containers in a pods.
+kubectl logs -f <podname> <conatiner-name>
+
+---------------
+Deployment:
+
+kubectl rollout status deployment/<deployment name>
+kubectl rollout history deployment/<deployment name>
+
+----------
+Commands and Args:
+
+python app.py --color red ==== We can write this in below format in the dockerfile.
+In this command '--color red' can be overwritten from the command line.
+
+ENTRYPOINT ["python", "app.py"]  == command which can not be altered.
+CMD ["--color", "red"] === command which can be altered from commandline
+
+ENTRYPOINT corresponds to "command" in pod definition file.
+CMD corresponds to "args" in pod definition file.
+-------
+Question: Observe 2 files and tell which command runs at the container startup?
+
+controlplane ~/webapp-color-2 ➜  cat Dockerfile 
+FROM python:3.6-alpine
+RUN pip install flask
+COPY . /opt/
+EXPOSE 8080
+WORKDIR /opt
+ENTRYPOINT ["python", "app.py"]
+CMD ["--color", "red"]
+
+controlplane ~/webapp-color-2 ➜  cat webapp-color-pod.yaml 
+apiVersion: v1 
+kind: Pod 
+metadata:
+  name: webapp-green
+  labels:
+      name: webapp-green 
+spec:
+  containers:
+  - name: simple-webapp
+    image: kodekloud/webapp-color
+    command: ["--color","green"]
+
+ANSWER: --color green (command overwrites ENTRYPOINT and CMD)
+NOTE: Basically, command and arg given in pod.yaml overwrites Dockerfile's entrypoint and cmd.
+------------------------
+
+controlplane ~/webapp-color-3 ➜  cat Dockerfile 
+FROM python:3.6-alpine
+RUN pip install flask
+COPY . /opt/
+EXPOSE 8080
+WORKDIR /opt
+ENTRYPOINT ["python", "app.py"]
+CMD ["--color", "red"]
+
+controlplane ~/webapp-color-3 ➜  cat webapp-color-pod-2.yaml 
+apiVersion: v1 
+kind: Pod 
+metadata:
+  name: webapp-green
+  labels:
+      name: webapp-green 
+spec:
+  containers:
+  - name: simple-webapp
+    image: kodekloud/webapp-color
+    command: ["python", "app.py"]
+    args: ["--color", "pink"]
+
+ANSWER: python app.py --color pink (args overwrites CMD)
+---------------------------------
+
+Environment Variables:
+
+3 Types: Plain key value, ConfigMaps, Secrets
+
+Example of plain key value:
+kubectl run <pod-name> -e APP_COLOR=pink
+
+env:
+ - name: APP_COLOR
+   key: pink
+
+Example of ConfigMap:
+
+env:
+- name: APP_COLOR   (This we can give same as key)
+  valueFrom:
+    configMapKeyRef:
+      name: <configpath-name>
+      key: APP_COLOR 	
+OR
+
+envFrom:
+- configMapRef:
+    name: <configmap-name>
+
+Example of Secret:
+env:
+- name: APP_COLOR
+  valueFrom:
+    secretKeyRef:
+
+ConfigMap is also used in Volumes:
+
+volumes:
+- name: app-config-volume
+  configMap:
+    name: app-config
+----------------------------------
+Create ConfigMaps:
+
+kubectl create configmap <configmap-name> \
+	--from-literal=<key>=<value>
+Eg: 
+kubectl create configmap <configmap-name> \
+	--from-literal=app=web
+
+kubectl create configmap <configmap-name> \
+	--from-file=<file-path>
+Eg:
+kubectl create configmap <configmap-name> \
+	--from-file=app_config.properties
+
+-------------------
+Secrets:
+
+kubectl create secret generic <secret-name> --from-literal=DB_Password=password
+
+kubectl create secret generic <secret-name> --from-file=<file-path>
+
+kubectl create secret docker-registry secret-tiger-docker \
+  --docker-email=tiger@acme.example \
+  --docker-username=tiger \
+  --docker-password=pass1234 \
+  --docker-server=my-registry.example:5000
+
+Use secret in pod: 
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: private-reg
+spec:
+  containers:
+  - name: private-reg-container
+    image: <your-private-image>
+  imagePullSecrets:
+  - name: regcred
+---
+apiVersion: v1
+kind: Secret
+metadata:
+ name: app-secret
+data:
+  DB_Host: mysql
+  DB_Password: password
+---
+
+Above data cant be stored in plain text, we have to put the encoded data:
+echo -n 'mysql' | base64
+echo -n 'password' | base64
+
+To decode them use:
+echo -n 'mysql' | base64 --decode
+echo -n 'password' | base64 --decode
+
+Ways to provide secret:
+1.
+spec:
+  containers:
+  - envFrom:
+      - secretRef:
+	  name: <secret-name>
+
+2. 
+env:
+  - name: DB_Password
+    valueFrom:
+      secretKeyRef:
+        name: <secret-name>
+        key: DB_Password
+3.
+volumes:
+- name: app-secret-volume
+  Secret:
+    secretName: app-secret
+
+Note: Secrets are not encrypted, they are encoded.
+Do not check-in secrets to SCM along with the code.
+Secrets are not encrypted in ETCD, we can enable encryption at rest.
+Use thrid party secrets provider like AWS, Azure, etc
+
+--------------------
+
+Multi-container pods:  
+
+In a multi-container pod, each container is expected to run a process that stays alive as long as the POD's lifecycle. 
+For example in the multi-container pod that we talked about earlier that has a web application and logging agent, both the containers are expected to stay alive at all times.
+If any of them fails, the POD restarts.
+
+It has 3 design pattern.
+1. Sidecar
+Sidecar containers are the secondary containers that run along with the main application container within the same Pod. 
+These containers are used to enhance or to extend the functionality of the primary app container by providing additional services, or functionality such as logging, monitoring, security, or data synchronization, without directly altering the primary application code.
+They are active throughout the lifecycle of the pod and can be started and stopped independently of the main container.
+2. Adapter
+3. Ambassador
+4. Ephemeral container
+Sometimes it's necessary to inspect the state of an existing Pod, however, for example to troubleshoot a hard-to-reproduce bug. 
+In these cases you can run an ephemeral container in an existing Pod to inspect its state and run arbitrary commands.
+
+InitContainers: 
+
+At times you may want to run a process that runs to completion in a container. 
+For example a process that pulls a code or binary from a repository that will be used by the main web application. 
+That is a task that will be run only  one time when the pod is first created. 
+Or a process that waits  for an external service or database to be up before the actual application starts. That's where initContainers comes in.
+
+When a POD is first created the initContainer is run, and the process in the initContainer must run to a completion before the real container hosting the application starts.
+InitContainer gets terminated after the process is completed.
+You can configure multiple such initContainers as well, like how we did for multi-containers pod. In that case each init container is run one at a time in sequential order.
+If any of the initContainers fail to complete, Kubernetes restarts the Pod repeatedly until the Init Container succeeds.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp-pod
+  labels:
+    app: myapp
+spec:
+  containers:
+  - name: myapp-container
+    image: busybox:1.28
+    command: ['sh', '-c', 'echo The app is running! && sleep 3600']
+  initContainers:
+  - name: init-myservice
+    image: busybox:1.28
+    command: ['sh', '-c', 'until nslookup myservice; do echo waiting for myservice; sleep 2; done;']
+  - name: init-mydb
+    image: busybox:1.28
+    command: ['sh', '-c', 'until nslookup mydb; do echo waiting for mydb; sleep 2; done;']
+
+-------------------
+Types of probe
+
+livenessProbe
+Indicates whether the container is running. If the liveness probe fails, the kubelet kills the container, and the container is subjected to its restart policy.
+
+readinessProbe
+Indicates whether the container is ready to respond to requests.
+If you'd like to start sending traffic to a Pod only when a probe succeeds, specify a readiness probe.
+
+startupProbe
+Indicates whether the application within the container is started. All other probes are disabled if a startup probe is provided, until it succeeds. If the startup probe fails, the kubelet kills the container, and the container is subjected to its restart policy.
+-----------------------
+Cluster maintanence:
+
+kubectl drain node1 -- pods are deleted from node1 and re-created on other pods. In other words, pods are evicted from node1. 
+                       When we do drain, it cordons the node. Pods which are part of the replicaset will be drained,
+                       pods which are not part of the replicaset will not be drained, we will have to drain them forcefully. But once they get deleted, they will be deleted forever.
+kubectl cordon node1 -- node1 is marked as unschedulable. If we do not want to scedule any pod on node01 then we do cordon
+kubectl uncordon node1 -- node1 is maked as schedulable, new pods will be scheduled on this.
+
+------------------------------------------------------------------
+Cluster upgrade process:
+
+You have to always upgrade one minor version. And we always upgrade controlplane/master node first.
+
+apt-get upgrade -y kubeadm=1.12.0-00 (Assuming we are at v1.11)
+kubeadm upgrade plan  --- gives info about the current cluster version, kubeadm version, target version.
+                          kubeadm upgrades kube-apiserver, kube-scheduler,kube-controller-manager, kube-proxy, etcd, coredns.
+                          kubelet we have to upgrade manually.
+kubeadm upgrade apply <version>   --kubeadm upgrades kube-apiserver, kube-scheduler,kube-controller-manager, kube-proxy, etcd, coredns.
+                                    kubelet we have to upgrade manually.
+
+NOTE: After upgradation do, kubectl get nodes. It will still show the older version, that is because we have not upgraded kubelet yet.
+
+To upgrade kubelet on controlplane/master node:
+kubectl drain <node> --ignore-daemonsets
+follow documentation to upgrade and then uncorden this node.
+
+Upgrade Worker nodes: (Refer documentation)
+
+1. kubectl drain node1  (it eveicts the pods and marks the node as cordened meaning unschedulable)
+2. Follow documentation
+3. kubectl uncordon node1
+--------------------
+
+Take backup of etcd:
+
+1. kubectl get pods -n kube-system
+2. describe the etcd pod, you will find the below details.
+3. To take bakcup:
+export ETCDCTL_API=3
+etcdctl snapshot save --endpoints=127.0.0.1:2379 \
+--cacert=/etc/kubernetes/pki/etcd/ca.crt \
+--cert=/etc/kubernetes/pki/etcd/server.crt \
+--key=/etc/kubernetes/pki/etcd/server.key /opt/snapshot-pre-boot.db
+
+
+Restore the etcd:
+
+export ETCDCTL_API=3
+etcdctl snapshot restore --data-dir /var/lib/etcd-from-backup /opt/snapshot-pre-boot.db (restore backup from /opt/snapshot-pre-boot.db to /var/lib/etcd-from-backup)
+
+Now update the backed up location into manifests file /etc/kubernetets/manifests/etcd.yaml under volumes.name: etcd-data
+It will take some time to  bring back the pods up
+
+---------
+current config : kubectl config view
+current context: kubectl config current-context
+No. of clusters: kubectl config get-clusters
+which cluster : kubectl config get-context
+Switch to cluster1: kubectl config use-context cluster1
+
+when the etcd is external, we can ssh into the etcd server and run:	
+ps -ef | grep etcd
+
+ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/etcd/pki/ca.pem --cert=/etc/etcd/pki/etcd.pem --key=/etc/etcd/pki/etcd-key.pem member list
+
+How many nodes are part of the ETCD cluster that etcd-server is a part of?
+ETCDCTL_API=3 etcdctl \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/etcd/pki/ca.pem \
+  --cert=/etc/etcd/pki/etcd.pem \
+  --key=/etc/etcd/pki/etcd-key.pem \
+   member list
+
+An ETCD backup for cluster2 is stored at /opt/cluster2.db. Use this snapshot file to carryout a restore on cluster2 to a new path /var/lib/etcd-data-new.
+
+scp /opt/cluster2.db etcd-server:/root
+ssh etcd-server
+ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/etcd/pki/ca.pem --cert=/etc/etcd/pki/etcd.pem --key=/etc/etcd/pki/etcd-key.pem snapshot restore /root/cluster2.db --data-dir /var/lib/etcd-data-new
+vi /etc/systemd/system/etcd.service
+and add the new value for data-dir
+chown -R etcd:etcd /var/lib/etcd-data-new
+systemctl daemon-reload 
+systemctl restart etcd
+
+-----
+Cluster version: kubectl get nodes
+command latest version available for an upgrade with the current version of the kubeadm tool installed:
+kubeadm upgrade plan
+
+------------------------------------------------------------------
+
+Security:
+
+Tools to generate certificate: openssl, easyrsa, cfssl, etc
+
+Steps:
+1. Create key : openssl genrsa -out server.key 2048
+2. Create CSR using above key
+3. Create cert using CSR and and key
+4. To check details of cert : openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text -noout
+
+If users want to have access then creds are used. But if k8s components (etcd, kube-apiserver, scheduler, control-manager) wants access 
+to other components within the cluster then that authentication is done using tls certificates (ca.crt, server.crt and server.key) 
+however, this same concept of tls cert can be used to proivde access to the user as well instead of creds. Let's see how.
+
+Stpes 1: Create certificate.
+
+1. User will create key and csr.
+2. He will share the csr with the Admin. Admin will create CSR object (csr-object.yaml) using the csr provided by the user:
+
+apiVersion: certificates.k8s.io/v1
+kind: CertificateSigningRequest
+metadata:
+  name: akshay
+spec:
+  groups:
+  - system:authenticated
+  request: <paste base64 encoded csr>
+  signerName: kubernetes.io/kube-apiserver-client
+  usages:
+  - client auth
+
+kubectl get csr
+
+3. He will then approve it: kubectl certificate approve <user-name>
+(Whe the admin approves it, in the backgroud CA signs this certificate, this CA is present in the control-manager component).
+4. After approving, the certificate is generated which is then share to the user.
+
+Or
+
+3/4. Get the csr signed from the ca.crt kept at the location /etc/kubernetes/pki/ca.crt
+
+Step 2 : Add kubeconfig
+
+kubectl config set-credentials myuser --client-key=myuser.key --client-certificate=myuser.crt --embed-certs=true
+kubectl config set-context myuser --cluster=kubernetes --user=myuser
+
+Step 3: Creare role and rolebinding
+
+-------------------------
+
+Check access:
+
+kubectl auth can-i create pods
+
+Check if a user has access:
+kubectl auth can-i create pods --as <user>
+
+--------------------------------------------------------------------
+
+Service Account:
+
+There are 2 types of accounts:
+1. User (Account) for humans
+2. Service Account for bots.
+
+kubectl set serviceaccount deploy/web-dashboard dashboard-sa
+
+
+If an app wants to access k8s cluster then we create service account. Assign required permissions using RBAC (role and rolebinding)
+k create serviceaccount <sa-name>
+This serviceaccount creates a token which is stored in the object called as secrets.
+Now the app can use this token to get access to the cluster.
+
+We create SA > SA creates token > token is stored as secret.
+
+Now if this app is present in k8s itself then we don't have to export the secret we can instead mount this SA secret as volume in the app's pod.
+
+Each namespace has its own deafult SA. Whenever we create a pod we don't explicitly mention any volume or secret but if you see the pods details:
+you can see that a volume is automatically created having the secret of the default token of SA.
+This token is mounted at /var/run/secrets/kubernetes.io/serviceacount in the pod.
+
+However, with the v1.22 and onwards, creating SA does not create secret token. We have to create SA and then create token which is expirable. (Recommended)
+If you want a token which does not expire then you should secret associated with the SA (Not-recommended)
+---
+
+Secret type used to store docker registry related creds is "docker-registry"
+
+k create secret docker-registry:
+Example:
+kubectl create secret docker-registry private-reg-cred \
+--docker-username=dock_user --docker-password=dock_password --docker-server=myprivateregistry.com:5000 --docker-email=dock_user@myprivateregistry.com
+
+This secret is then used in deployment def file as imagePullSecrets
+
+--
+Execute command "whoami" in the pod:	
+kubectl exec ubuntu-sleeper -- whoami
+
+--------------------------------------------------------------------
+
+Storage:
+
+Docker volumes
+1. volume mount : Mounts data from the /var/lib/docker/volumes location to the container
+Example: docker run -v data_volume:/var/lib/mysql msql ---> here data_volume has the default location as /var/lib/docker/volumes/data_volume on the host.
+you can also create volume : docker create volume data_volume2 ---> this volume will get created under /var/lib/docker/volumes on the host.
+
+2. bind mount : Mounts data from any location into the container.
+Example: docker run -v /var/lib/mysql:/var/lib/mysql msql  ---> here are are mounting /var/lib/mysql from host to /var/lib/mysql in the container
+
+Storage driver takes care of the storage and layered docker images - overlay, overlay2,aufs, etc
+
+----
+
+Volumes:
+
+PV:
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-log
+spec:
+  persistentVolumeReclaimPolicy: Retain
+  capacity:
+    storage: 100Mi
+  accessModes: 
+    - ReadWriteMany
+  hostPath:
+    path: /pv/log
+---
+There are 3 types of PVs:
+1. Retain : If PVC is deleted pv is retained but not made available for other pvcs.
+2. Delete : If PVC is deleted. PV is also deleted.
+3. Recycle : If PVC is deleted, PV is cleared and made available for other PVCs, but this is deprecated instead storage class is used.
+
+We always deleted pvc first. If pvc gets stuck in terminating while deleted it means, this pvc is being used in the pod. 
+Delete the pod and then see pvc must have gotten deleted. Note the status of the PV will be in 'Released' state
+-----
+
+PVC:
+
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: claim-log-1
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Mi
+
+Note: For the PVC to bind to PV, their accessmode must match.
+PVC 'claim-log-1' will get binded to pv 'pv-log'
+--
+Add PVC in pod:
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: webapp
+spec:
+  containers:
+  - name: event-simulator
+    image: kodekloud/event-simulator
+    env:
+    - name: LOG_HANDLERS
+      value: file
+    volumeMounts:
+    - mountPath: /log
+      name: log
+
+  volumes:
+  - name: log
+    persistentVolumeClaim:
+      claimName: claim-log-1
+
+---
+
+Storage Class:
+
+We do not creates PVs and keep. Instead we create a SC which is like a template. Everytime a PVC is used, associated SC creates the Volume as per requirement.
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: delayed-volume-sc
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+--------------------------------
+
+Access Modes:
+
+RWO - ReadWriteOnce - volume can be mounted by singe node, multiple pods on that node can access (for read and write)
+RWX - ReadWriteMany - volume can be mounted by multiple nodes, multiple pods can access (for read and write)
+ROX - ReadOnlyMany - volume can be mounted by many nodes as read only
+RWOP - ReadWriteOncePod - volume can be mounted as read-write by a single Pod. One pod across the whole cluster can read/write on it.
+----------------------------
+
+How to identify which resources can be created with imperative command?
+
+kubectl api-resources
+kubectl api-resources --namespaced
+
+------------
+Security context:
+There are 2 ways in which we can define security context:
+1. in spec which will apply on all the containers in the pod.
+2. in spec.containers which will apply on the specific container
+3. capabilities are set inside the container.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: multi-pod
+spec:
+  securityContext:
+    runAsUser: 1001   //all containers in this pod will have this user
+  containers:
+  -  image: ubuntu
+     name: web
+     command: ["sleep", "5000"]
+     securityContext:
+      runAsUser: 1002   // but this container overwrites above 1001 and this container will have 1002 user
+
+  -  image: ubuntu
+     name: sidecar
+     command: ["sleep", "5000"]
+
+--
+capabilities are added on a container:
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: security-context-demo-4
+spec:
+  containers:
+  - name: sec-ctx-4
+    image: gcr.io/google-samples/hello-app:2.0
+    securityContext:
+      capabilities:
+        add: ["NET_ADMIN", "SYS_TIME"]
+------------
+Network policy:
+
+Ingress - incoming traffic
+Egress - outgoing traffic
+
+---
+
+k get nodes -o wide
+ip a | grep 192.21.68.3
+
+What is the network interface configured for cluster connectivity on the controlplane node?
+ssh to that node
+First find the node IP, then use #ip a | grep <node IP> - B 5
+
+What is the Mac Address of the node?
+ssh to that node
+First find the node IP, then use #ip a | grep <node IP> - B 5
+
+We use Containerd as our container runtime. What is the interface/bridge created by Containerd on the controlplane node?
+ip a   // usually cni0 
+
+If you were to ping google from the controlplane node, which route does it take?
+ip route
+
+What is the port the kube-scheduler is listening on in the controlplane node?
+netstat -tulnp | grep scheduler
+
+ip addr show weave
+
+ip link show eth0
+netstat -tulnp | grep etcd
+
+The CNI binaries are located under /opt/cni/bin by default.
+
+What is the CNI plugin configured to be used on this kubernetes cluster? 
+ls /etc/cni/net.d/
+
+What binary executable file will be run by kubelet after a container and its associated namespace are created?
+cat /etc/cni/net.d/10-flannel.conflist 
+
+pod ip range defined:
+k logs weave-net-jdxh8 -n kube-system
+
+What is the IP Range configured for the services within the cluster?
+cat /etc/kubernetes/manifests/kube-apiserver.yaml   | grep cluster-ip-range
+
+What type of proxy is the kube-proxy configured to use?
+kubectl logs <kube-proxy-pod-name> -n kube-system
+
+What is the IP of the CoreDNS server that should be configured on PODs to resolve services?
+kubectl get service -n kube-system
+
+Where is the configuration file located for configuring the CoreDNS service?
+Refer Args of coredns deployment
+
+cluster domain?
+k describe cm coredns -n kube-system
+
+
+
+
+
+
+
+		
